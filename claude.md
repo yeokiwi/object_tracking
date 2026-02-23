@@ -81,6 +81,9 @@ Organize the code with the following functions:
 
 ---
 
+### Testing
+- Test the software using IR.mp4
+
 ### Notes for Implementation
 - Use `opencv-contrib-python` and not just `opencv-python`, as CSRT is part of the contrib module.
 - When calling `cv2.selectROI`, set `showCrosshair=True` and `fromCenter=False` for best UX.
