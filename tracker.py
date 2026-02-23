@@ -26,8 +26,8 @@ COLORS = [
 LOST_COLOR = (0, 0, 255)  # Red for lost objects
 
 # Maximum display dimensions for resizing large frames
-MAX_DISPLAY_WIDTH = 1280
-MAX_DISPLAY_HEIGHT = 720
+MAX_DISPLAY_WIDTH = 3840
+MAX_DISPLAY_HEIGHT = 2160
 
 
 def load_video(path):
@@ -97,7 +97,7 @@ def select_bounding_boxes(frame):
             cv2.rectangle(display, (x, y), (x + w, y + h), color, 2)
             cv2.putText(
                 display,
-                f"Object {i + 1}",
+                f"Drone {i + 1}",
                 (x, y - 10),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
@@ -174,12 +174,12 @@ def draw_tracked_objects(frame, trackers, colors, last_known_positions):
         success, bbox = tracker.update(frame)
         success_list.append(success)
         color = colors[i % len(colors)]
-        label = f"Object {i + 1}"
+        label = f"Drone {i + 1}"
 
         if success:
             x, y, w, h = [int(v) for v in bbox]
             last_known_positions[i] = (x, y)
-            cv2.rectangle(annotated, (x, y), (x + w, y + h), color, 2)
+            # cv2.rectangle(annotated, (x, y), (x + w, y + h), color, 2)
             cv2.putText(
                 annotated,
                 label,
