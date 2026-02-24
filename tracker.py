@@ -60,7 +60,7 @@ def load_video(path):
     return cap, metadata
 
 
-def select_bounding_boxes(frame):
+def select_bounding_boxes(frame, start_index=0, allow_empty=False):
     """Handles interactive ROI selection and returns a list of bounding boxes.
 
     Uses cv2.selectROI in a loop. The user can:
@@ -69,13 +69,17 @@ def select_bounding_boxes(frame):
     - Press ESC to cancel the current selection.
 
     Args:
-        frame: The first frame of the video (numpy array).
+        frame: The video frame to select objects on (numpy array).
+        start_index: Starting object number for labeling (0-based). Used when
+            adding objects mid-tracking so labels continue from existing count.
+        allow_empty: If True, return an empty list instead of exiting when no
+            bounding boxes are selected. Used for mid-tracking additions.
 
     Returns:
         List of bounding boxes as (x, y, w, h) tuples.
 
     Raises:
-        SystemExit: If no bounding boxes are selected.
+        SystemExit: If no bounding boxes are selected and allow_empty is False.
     """
     bboxes = []
     window_name = "Select Objects - SPACE/ENTER to confirm, Q to finish, ESC to cancel"
@@ -92,12 +96,13 @@ def select_bounding_boxes(frame):
 
         # Draw already-selected boxes on the display
         for i, bbox in enumerate(bboxes):
+            obj_num = start_index + i + 1
             x, y, w, h = [int(v) for v in bbox]
-            color = COLORS[i % len(COLORS)]
+            color = COLORS[(start_index + i) % len(COLORS)]
             cv2.rectangle(display, (x, y), (x + w, y + h), color, 2)
             cv2.putText(
                 display,
-                f"Object {i + 1}",
+                f"Object {obj_num}",
                 (x, y - 10),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
@@ -106,7 +111,8 @@ def select_bounding_boxes(frame):
             )
 
         count = len(bboxes)
-        print(f"Select object {count + 1} (or press Q to start tracking with {count} object(s))...")
+        next_num = start_index + count + 1
+        print(f"Select object {next_num} (or press Q to start tracking with {count} new object(s))...")
 
         bbox = cv2.selectROI(
             window_name,
@@ -121,11 +127,12 @@ def select_bounding_boxes(frame):
             break
 
         bboxes.append(bbox)
-        print(f"  Added Object {len(bboxes)}: bbox={bbox}")
+        obj_num = start_index + len(bboxes)
+        print(f"  Added Object {obj_num}: bbox={bbox}")
 
     cv2.destroyWindow(window_name)
 
-    if not bboxes:
+    if not bboxes and not allow_empty:
         print("Error: No bounding boxes selected. Exiting.")
         sys.exit(1)
 
@@ -133,12 +140,14 @@ def select_bounding_boxes(frame):
     return bboxes
 
 
-def initialize_trackers(frame, bboxes):
+def initialize_trackers(frame, bboxes, start_index=0):
     """Creates and initializes a CSRT tracker for each bounding box.
 
     Args:
-        frame: The first frame of the video (numpy array).
+        frame: The video frame to initialize trackers on (numpy array).
         bboxes: List of bounding boxes as (x, y, w, h) tuples.
+        start_index: Starting object number for labeling (0-based). Used when
+            adding trackers mid-tracking so labels continue from existing count.
 
     Returns:
         List of initialized cv2.TrackerCSRT instances.
@@ -148,7 +157,7 @@ def initialize_trackers(frame, bboxes):
         tracker = cv2.TrackerCSRT_create()
         tracker.init(frame, bbox)
         trackers.append(tracker)
-        print(f"  Tracker initialized for Object {i + 1}")
+        print(f"  Tracker initialized for Object {start_index + i + 1}")
 
     return trackers
 
@@ -208,6 +217,9 @@ def draw_tracked_objects(frame, trackers, colors, last_known_positions):
 def run_tracking(cap, trackers, writer, colors, metadata):
     """Main tracking loop: reads frames, updates trackers, writes output.
 
+    Press P to pause tracking, select additional bounding boxes, and resume.
+    Press Q to stop tracking early.
+
     Args:
         cap: cv2.VideoCapture object.
         trackers: List of initialized tracker instances.
@@ -227,6 +239,7 @@ def run_tracking(cap, trackers, writer, colors, metadata):
     scale = min(MAX_DISPLAY_WIDTH / fw, MAX_DISPLAY_HEIGHT / fh, 1.0)
 
     print("--- Tracking Started ---")
+    print("Press P to pause and add new objects.")
     print("Press Q to stop tracking early.\n")
 
     while True:
@@ -253,7 +266,7 @@ def run_tracking(cap, trackers, writer, colors, metadata):
             fps_display = 1.0 / elapsed
 
         # Draw frame counter and FPS overlay
-        info_text = f"Frame: {frame_count} | FPS: {fps_display:.1f}"
+        info_text = f"Frame: {frame_count} | FPS: {fps_display:.1f} | Objects: {len(trackers)}"
         cv2.putText(
             annotated,
             info_text,
@@ -262,6 +275,17 @@ def run_tracking(cap, trackers, writer, colors, metadata):
             0.7,
             (255, 255, 255),
             2,
+        )
+
+        # Draw pause hint
+        cv2.putText(
+            annotated,
+            "P: Pause & Add Objects | Q: Quit",
+            (10, fh - 15),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (200, 200, 200),
+            1,
         )
 
         # Write frame to output
@@ -277,17 +301,44 @@ def run_tracking(cap, trackers, writer, colors, metadata):
 
         cv2.imshow("Multi-Object Tracking", display_frame)
 
-        # Check for 'q' key press to exit early
+        # Check for key presses
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q") or key == ord("Q"):
             print("Tracking stopped by user.")
             break
+        elif key == ord("p") or key == ord("P"):
+            # Pause tracking and allow new bounding box selection
+            print(f"\n--- Paused at frame {frame_count} ---")
+            print(f"Currently tracking {len(trackers)} object(s).")
+            print("Select additional objects on the current frame.\n")
+
+            cv2.destroyWindow("Multi-Object Tracking")
+
+            new_bboxes = select_bounding_boxes(
+                frame,
+                start_index=len(trackers),
+                allow_empty=True,
+            )
+
+            if new_bboxes:
+                new_trackers = initialize_trackers(frame, new_bboxes,
+                                                   start_index=len(trackers))
+                trackers.extend(new_trackers)
+                last_known_positions.extend(
+                    [(int(b[0]), int(b[1])) for b in new_bboxes]
+                )
+                print(f"Now tracking {len(trackers)} object(s) total.")
+            else:
+                print("No new objects added.")
+
+            print("\n--- Resuming Tracking ---\n")
 
     cv2.destroyAllWindows()
 
     # Print summary
     print("\n--- Tracking Summary ---")
     print(f"Total frames processed: {frame_count}")
+    print(f"Total objects tracked: {len(trackers)}")
     if lost_objects:
         lost_names = ", ".join(f"Object {n}" for n in sorted(lost_objects))
         print(f"Objects lost during tracking: {lost_names}")

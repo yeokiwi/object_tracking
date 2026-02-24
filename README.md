@@ -5,6 +5,7 @@ A Python application that performs simultaneous multi-object tracking on video f
 ## Features
 
 - **Interactive object selection** - Draw bounding boxes on the first frame to select objects to track
+- **Pause and add objects** - Press P during tracking to pause, select additional objects on the current frame, and resume tracking all objects
 - **Multi-object tracking** - Track multiple objects simultaneously using individual CSRT tracker instances
 - **Color-coded visualization** - Each tracked object gets a distinct color for its bounding box and label
 - **Lost object detection** - Objects that can no longer be tracked are marked as "Lost" in red
@@ -63,9 +64,23 @@ Previously selected objects are shown with their color-coded bounding boxes whil
 ### During Tracking
 
 - The video plays with bounding boxes and labels drawn on each tracked object
-- A frame counter and FPS reading are shown in the top-left corner
+- A frame counter, FPS reading, and object count are shown in the top-left corner
+- Controls are displayed at the bottom of the frame
+- Press **P** to pause and add new objects (see below)
 - Press **Q** at any time to stop tracking early
 - When tracking ends (video complete or user stops), a summary is printed to the terminal
+
+### Adding Objects Mid-Tracking (Pause/Resume)
+
+You can add new objects to track at any point during playback:
+
+1. Press **P** to pause the video
+2. The bounding box selection window opens on the current frame
+3. Draw bounding boxes around new objects (same controls as initial selection)
+4. Press **Q** or **ESC** in the selection window to finish adding objects
+5. Tracking resumes automatically with all objects (old and new)
+
+New objects are assigned the next available label (e.g., if you had Objects 1-3, new ones start at Object 4) and get their own distinct colors.
 
 ### Output
 
@@ -76,8 +91,8 @@ The annotated video is saved as `output_tracked.mp4` in the working directory.
 | Function | Description |
 |---|---|
 | `load_video(path)` | Opens video capture and returns the capture object and metadata (width, height, fps) |
-| `select_bounding_boxes(frame)` | Handles interactive ROI selection loop, returns list of bounding boxes |
-| `initialize_trackers(frame, bboxes)` | Creates and initializes a CSRT tracker for each bounding box |
+| `select_bounding_boxes(frame, start_index, allow_empty)` | Handles interactive ROI selection loop, returns list of bounding boxes |
+| `initialize_trackers(frame, bboxes, start_index)` | Creates and initializes a CSRT tracker for each bounding box |
 | `draw_tracked_objects(frame, trackers, colors, last_known_positions)` | Updates all trackers on the current frame and draws results |
 | `run_tracking(cap, trackers, writer, colors, metadata)` | Main tracking loop: reads frames, draws, writes output, displays in real time |
 | `main()` | Entry point that orchestrates the full pipeline |
